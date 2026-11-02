@@ -1,0 +1,38 @@
+# DBHub configuration for the mssql-data plugin (SQL Server 2022, on-premises).
+#
+# The DSN comes from the plugin's user configuration (prompted on install,
+# stored in Claude Code's secure storage) and reaches DBHub as MSSQL_DSN,
+# interpolated below at load time. No credentials live in this file.
+#
+# Policy: read-only, results capped at 1000 rows, 60 s query timeout.
+# explain_sql (estimated plan via SHOWPLAN_XML, never executes) and
+# health_check (needs VIEW SERVER STATE; degrades gracefully without it)
+# are enabled because both are read-only.
+#
+# For write access or several servers/databases, see templates/dbhub.multi-source.toml.
+
+[[sources]]
+id = "mssql"
+description = "SQL Server 2022 (internal server)"
+dsn = "${MSSQL_DSN}"
+connection_timeout = 30
+query_timeout = 60
+lazy = true
+
+[[tools]]
+name = "execute_sql"
+source = "mssql"
+readonly = true
+max_rows = 1000
+
+[[tools]]
+name = "search_objects"
+source = "mssql"
+
+[[tools]]
+name = "explain_sql"
+source = "mssql"
+
+[[tools]]
+name = "health_check"
+source = "mssql"
