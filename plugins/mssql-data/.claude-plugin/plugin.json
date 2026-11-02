@@ -1,7 +1,7 @@
 {
   "name": "mssql-data",
-  "version": "1.0.4",
-  "description": "SQL Server 2022 data analyst for on-premises/internal servers. Write T-SQL, explore schemas, profile and validate data, and build visualizations and dashboards. Combines the Anthropic data plugin skills with the DBHub MCP server.",
+  "version": "2.0.0",
+  "description": "SQL Server 2022 data analyst for on-premises/internal servers. Add any number of servers after installation with /mssql-data:add-server, then write T-SQL, explore schemas, profile and validate data, and build visualizations and dashboards. Combines the Anthropic data plugin skills with the DBHub MCP server.",
   "author": {
     "name": "Yusuf Muhammad"
   },
@@ -14,14 +14,5 @@
     "sql-server-2022",
     "data-analysis",
     "dbhub"
-  ],
-  "userConfig": {
-    "dsn": {
-      "type": "string",
-      "title": "SQL Server 2022 connection string (DSN)",
-      "description": "Format: sqlserver://user:password@host:1433/database?sslmode=require. Named instance: add &instanceName=NAME. Windows/AD login: add &authentication=ntlm&domain=CORP. URL-encode special characters in the password (@ -> %40, : -> %3A, / -> %2F, # -> %23). Use a least-privilege, read-only login.",
-      "sensitive": true,
-      "required": true
-    }
-  }
+  ]
 }

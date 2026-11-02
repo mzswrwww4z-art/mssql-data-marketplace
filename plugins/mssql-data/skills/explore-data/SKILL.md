@@ -32,7 +32,7 @@ Generate a comprehensive data profile for a SQL Server table/view or an uploaded
 
 **If neither:**
 
-1. Suggest `/mssql-setup` to connect, or ask the user to upload an export
+1. Suggest `/mssql-data:add-server` to connect a server (or `/mssql-data:mssql-setup` if a configured server fails), or ask the user to upload an export
 2. If they describe a table schema, provide the T-SQL profiling queries for them to run in SSMS
 
 ### 2. Understand Structure

@@ -10,14 +10,16 @@ Write correct, performant, readable T-SQL for **SQL Server 2022 (16.x)** only. D
 
 ## Working Through DBHub (Read-Only)
 
-The plugin's `dbhub` MCP server exposes these tools for the `mssql` source:
+The plugin's `dbhub` MCP server exposes one set of tools per server the user added with `/mssql-data:add-server`. With a single server the names are plain; with several, every tool carries the server name as suffix:
 
-| Tool | Use for |
-|------|---------|
-| `search_objects` | Find schemas, tables, views, columns, procedures, functions, indexes (progressive: `names` → `summary` → `full`) |
-| `execute_sql` | Run read-only queries. Results are capped at 1000 rows, 60 s timeout |
-| `explain_sql` | Estimated execution plan (SHOWPLAN_XML). Never executes the statement |
-| `health_check` | Connection pool and buffer cache metrics (needs `VIEW SERVER STATE`) |
+| Tool (one server) | Tool (several servers) | Use for |
+|-------------------|------------------------|---------|
+| `search_objects` | `search_objects_<server>` | Find schemas, tables, views, columns, procedures, functions, indexes (progressive: `names` → `summary` → `full`) |
+| `execute_sql` | `execute_sql_<server>` | Run read-only queries. Results are capped at 1000 rows, 60 s timeout |
+| `explain_sql` | `explain_sql_<server>` | Estimated execution plan (SHOWPLAN_XML). Never executes the statement |
+| `health_check` | `health_check_<server>` | Connection pool and buffer cache metrics (needs `VIEW SERVER STATE`) |
+
+With several servers, use the one the user means (each source's description says what it holds; ask when it is ambiguous) and name the server when presenting results. Every query runs on exactly one server: to combine data from two servers, query each one and combine the results afterwards. If there are no database tools at all, no server is configured yet; suggest `/mssql-data:add-server`.
 
 **Read-only rules enforced by DBHub on SQL Server** — every statement must start with `SELECT` or `WITH`. Therefore:
 

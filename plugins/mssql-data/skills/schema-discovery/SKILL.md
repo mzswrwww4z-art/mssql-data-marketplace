@@ -8,6 +8,8 @@ user-invocable: false
 
 Use `search_objects` with progressive disclosure — always coarse to fine. Never start with a pattern-less `full` call on an unfamiliar database.
 
+With several servers configured, every server has its own tool (`search_objects_<server>`) and its own schema: explore the server the user means.
+
 ## Workflow
 
 1. **Orient — schemas first.** `object_type: "schema"`. Internal SQL Server databases often split data across schemas (`dbo`, `sales`, `hr`, `staging`, `rpt`), and the same table name can exist in several.

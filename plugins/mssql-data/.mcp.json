@@ -1,18 +1,8 @@
 {
   "mcpServers": {
     "dbhub": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@bytebase/dbhub@1.5.0",
-        "--transport",
-        "stdio",
-        "--config",
-        "${CLAUDE_PLUGIN_ROOT}/dbhub.toml"
-      ],
-      "env": {
-        "MSSQL_DSN": "${user_config.dsn}"
-      }
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/start-dbhub.mjs"]
     }
   }
 }

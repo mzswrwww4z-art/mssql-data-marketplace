@@ -4,7 +4,7 @@ Marketplace Claude Code berisi plugin **mssql-data**: analis data untuk SQL Serv
 
 ## Instal
 
-Butuh Claude Code minimal 2.1.285, Node.js minimal 22.5, dan akses jaringan ke SQL Server (kantor atau VPN). Jalankan di Terminal:
+Butuh Claude Code, Node.js minimal 22.5, dan akses jaringan ke SQL Server (kantor atau VPN). Jalankan di Terminal:
 
 ```bash
 claude plugin marketplace add mzswrwww4z-art/mssql-data-marketplace
@@ -13,10 +13,14 @@ claude plugin marketplace add mzswrwww4z-art/mssql-data-marketplace
 claude plugin install mssql-data@mssql-data-marketplace --scope user
 ```
 
-Isi DSN. Langkah ini wajib, karena MCP `dbhub` baru terdaftar setelah DSN diisi:
+## Tambah server
+
+Buka sesi Claude Code, lalu jalankan `/mssql-data:add-server`. Claude menanyakan detail server, lalu membuka dialog password macOS. Password tidak lewat chat dan disimpan di Keychain. Setelah itu buka sesi baru, dan server siap dipakai. Server lain bisa ditambahkan dengan cara yang sama, dan semuanya aktif bersamaan.
+
+## Update
 
 ```bash
-~/.claude/plugins/marketplaces/mssql-data-marketplace/plugins/mssql-data/scripts/set-dsn.sh
+claude plugin marketplace update mssql-data-marketplace && claude plugin update mssql-data@mssql-data-marketplace
 ```
 
-Lalu buka sesi Claude Code baru. Panduan lengkap (format DSN, login read-only, troubleshooting): [plugins/mssql-data/README.md](plugins/mssql-data/README.md).
+Panduan lengkap (detail server, keamanan, troubleshooting): [plugins/mssql-data/README.md](plugins/mssql-data/README.md).

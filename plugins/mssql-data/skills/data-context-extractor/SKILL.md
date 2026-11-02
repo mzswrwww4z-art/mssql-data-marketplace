@@ -36,7 +36,7 @@ Use when: User wants to create a new data context skill for their SQL Server dat
 
 **Step 1: Confirm the connection and environment**
 
-The database is always SQL Server 2022, reached through the plugin's `dbhub` MCP server (read-only). If the tools are missing or failing, run `/mssql-setup` first.
+The database is always SQL Server 2022, reached through the plugin's `dbhub` MCP server (read-only). If the tools are missing, add the server with `/mssql-data:add-server`; if they fail, use `/mssql-data:mssql-setup`. With several servers configured, ask which server (and database) the skill is for.
 
 Run the environment check from the `tsql-queries` skill and record: server name, database name, product version (16.x), compatibility level, collation, and whether Query Store is on. Ask whether analysts also use other databases on the same server — each one may need its own domain file.
 
