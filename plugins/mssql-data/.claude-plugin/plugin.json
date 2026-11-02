@@ -1,6 +1,6 @@
 {
   "name": "mssql-data",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "SQL Server 2022 data analyst for on-premises/internal servers. Write T-SQL, explore schemas, profile and validate data, and build visualizations and dashboards. Combines the Anthropic data plugin skills with the DBHub MCP server.",
   "author": {
     "name": "Yusuf Muhammad"

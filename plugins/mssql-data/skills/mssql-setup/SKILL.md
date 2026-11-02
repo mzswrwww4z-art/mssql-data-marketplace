@@ -96,7 +96,7 @@ A JSON `initialize` response means DBHub started. The connection itself is lazy,
 | Symptom | Likely cause / fix |
 |---------|--------------------|
 | No `dbhub` MCP server or tools at all | The required `dsn` option is not set (`claude plugin configure mssql-data@mssql-data-marketplace` shows `required, not set`), or the session started before it was saved. Set it with the command in section 1, then open a new session. |
-| Plugin updates fail after moving/deleting the local folder | A local-folder marketplace keeps pointing at its source folder (GitHub installs are not affected). Re-add it from the new path: `claude plugin marketplace add "<new path>/mssql-data-marketplace"`, then reinstall. |
+| Plugin broken after moving/deleting the local folder | Local-folder installs are read directly from the source folder, so moving or deleting it breaks the plugin (GitHub installs are not affected). Re-add it from the new path: `claude plugin marketplace add "<new path>/mssql-data-marketplace"`, then reinstall. |
 | `Failed to connect ... in 15000ms` / `ETIMEOUT` / `ESOCKET` | Host/port unreachable: VPN off, firewall blocking TCP 1433, wrong port for a named instance. Test with `nc -vz <host> 1433`. |
 | `Login failed for user` | Wrong user/password, password not URL-encoded, SQL authentication disabled on the server (Windows-only mode), or the login has no user in that database. |
 | `Cannot open database "X" requested by the login` | The login exists but has no user mapped in that database, or the database name is wrong. |

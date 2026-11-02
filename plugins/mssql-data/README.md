@@ -72,7 +72,7 @@ claude plugin marketplace update mssql-data-marketplace && claude plugin update 
 
 ### Dari folder lokal
 
-> **Penting:** Claude Code menyalin plugin ke cache saat instal, tetapi marketplace tetap menunjuk ke folder sumber (dipakai saat `marketplace update` dan `plugin update`). Simpan folder `mssql-data-marketplace/` di lokasi permanen dan jangan dipindah atau dihapus setelahnya.
+> **Penting:** untuk instalasi dari folder lokal, Claude Code versi terbaru (termasuk yang dibawa desktop app) membaca plugin **langsung dari folder sumbernya**. `claude plugin list` akan menampilkan "Read from: …", sehingga perubahan file di folder itu berlaku di sesi berikutnya. Versi lama mungkin memakai salinan di `~/.claude/plugins/cache/`; kalau perubahan tidak terambil, jalankan `claude plugin update mssql-data@mssql-data-marketplace`. Karena dibaca langsung, simpan folder `mssql-data-marketplace/` di lokasi permanen dan jangan dipindah atau dihapus.
 
 1. Pastikan versi Claude Code di terminal minimal 2.1.285 (dibutuhkan oleh `claude plugin configure`). Cek dengan `claude --version`. Cara memperbarui tergantung cara instalnya. Untuk instalasi lewat Homebrew:
    ```bash
