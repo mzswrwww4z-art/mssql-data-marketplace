@@ -10,10 +10,10 @@ import os from "node:os";
 import path from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { buildDbhubToml } from "../plugins/mssql-data/scripts/dbhub.mjs";
 import {
   DIALOG_CANCELLED,
   DIALOG_UNAVAILABLE,
-  buildDbhubToml,
   macPasswordDialog,
   secretStore,
   validateServer,
@@ -23,12 +23,15 @@ import {
 const SCRIPTS = fileURLToPath(new URL("../plugins/mssql-data/scripts/", import.meta.url));
 const CLI = path.join(SCRIPTS, "mssql-servers.mjs");
 const LAUNCHER = path.join(SCRIPTS, "start-dbhub.mjs");
-const DBHUB_TIMEOUT_MS = 120_000;
+// The first DBHub start downloads about 250 MB, which is slow on Windows runners.
+const DBHUB_TIMEOUT_MS = 300_000;
+const PROBE_TIMEOUT_MS = DBHUB_TIMEOUT_MS - 20_000; // fires first, so DBHub's stderr gets reported
 const DBHUB_TOOLS = ["execute_sql", "search_objects", "explain_sql", "health_check"];
 const TRICKY_PASSWORD = 'p@ss:w0rd/#%? "q" \\b$ ü€';
 
-const SALES = ["--id", "sales", "--host", "10.0.0.5", "--user", "report_ro"];
-const HR = ["--id", "hr", "--host", "sql02.corp.local", "--user", "svc", "--auth", "ntlm", "--domain", "CORP", "--instance", "HR"];
+const SALES = ["--id", "sales", "--host", "10.0.0.5", "--user", "report_ro", "--no-test"];
+const HR = ["--id", "hr", "--host", "sql02.corp.local", "--user", "svc", "--auth", "ntlm", "--domain", "CORP", "--instance", "HR", "--no-test"];
+const UNREACHABLE = ["--id", "local", "--host", "127.0.0.1", "--port", "1", "--user", "report_ro"];
 
 const tempHomes = [];
 after(() => tempHomes.forEach((home) => fs.rmSync(home, { recursive: true, force: true })));
@@ -51,7 +54,7 @@ function probeMcp(env) {
     const timer = setTimeout(() => {
       child.kill();
       reject(new Error(`MCP probe timed out. stderr: ${stderr}`));
-    }, DBHUB_TIMEOUT_MS);
+    }, PROBE_TIMEOUT_MS);
     let buffer = "";
     let initialize;
     child.stderr.setEncoding("utf8");
@@ -167,7 +170,7 @@ describe("mssql-servers CLI", () => {
     assert.equal(readJson(servers).servers[0].host, "10.0.0.9");
     assert.deepEqual(readJson(secrets), { sales: "s3cret" });
 
-    const changed = cli(env, ["set-password", "--id", "sales", "--password-stdin"], "n3w-pass\n");
+    const changed = cli(env, ["set-password", "--id", "sales", "--password-stdin", "--no-test"], "n3w-pass\n");
     assert.equal(changed.status, 0, changed.stderr);
     assert.deepEqual(readJson(secrets), { sales: "n3w-pass" });
 
@@ -197,6 +200,22 @@ describe("mssql-servers CLI", () => {
     const unknown = cli(env, ["frobnicate"]);
     assert.equal(unknown.status, 1);
     assert.match(unknown.stderr, /Perintah tidak dikenal/);
+  });
+});
+
+describe("connection test", () => {
+  test("add keeps the server and reports a failed connection with exit code 4", { timeout: DBHUB_TIMEOUT_MS }, () => {
+    const env = { ...isolatedEnv(), MSSQL_DATA_TEST_TIMEOUT_MS: String(PROBE_TIMEOUT_MS) };
+    const added = cli(env, ["add", ...UNREACHABLE, "--password-stdin"], "s3cret\n");
+    assert.equal(added.status, 4, `${added.stdout}\n${added.stderr}`);
+    assert.match(added.stderr, /Uji koneksi gagal/);
+    assert.doesNotMatch(added.stderr, /DBHub (tidak merespons|tidak bisa dijalankan|berhenti)/);
+    assert.match(added.stderr, /tetap tersimpan/);
+    assert.deepEqual(JSON.parse(cli(env, ["list", "--json"]).stdout).map(({ id }) => id), ["local"]);
+
+    const tested = cli(env, ["test", "--id", "local"]);
+    assert.equal(tested.status, 4, `${tested.stdout}\n${tested.stderr}`);
+    assert.match(tested.stderr, /Uji koneksi gagal/);
   });
 });
 

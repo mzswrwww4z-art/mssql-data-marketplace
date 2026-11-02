@@ -97,7 +97,8 @@ Instalasi dari folder lokal dibaca langsung dari folder itu, jadi jangan dipinda
 
 1. Di Claude (CLI atau VS Code), jalankan `/mssql-data:add-server`. Detail boleh langsung disebutkan, misalnya `/mssql-data:add-server sales di 10.10.1.20, login report_ro`.
 2. Claude menanyakan detail yang masih kurang, lalu membuka **jendela password "mssql-data"**. Ketik password di sana, lalu klik **Simpan**. Password tidak pernah lewat chat, dan karakter khusus tidak perlu di-encode.
-3. Buka **sesi baru**, dan server langsung bisa dipakai. Ulangi langkah ini untuk server lain.
+3. Plugin langsung **menguji koneksi**. Kalau berhasil, muncul nama server, versi SQL Server, database default, dan login. Kalau gagal, muncul error dari SQL Server; servernya tetap tersimpan supaya bisa diperbaiki. Uji pertama di sebuah laptop sekaligus mengunduh DBHub (sekitar 250 MB), jadi bisa memakan beberapa menit.
+4. Buka **sesi baru**, dan server langsung bisa dipakai. Ulangi langkah ini untuk server lain.
 
 | Detail | Contoh / default |
 |--------|------------------|
@@ -119,7 +120,7 @@ Semua fungsi itu juga bisa dijalankan langsung dari terminal. Kalau dijalankan d
 node "$env:USERPROFILE\.claude\plugins\marketplaces\mssql-data-marketplace\plugins\mssql-data\scripts\mssql-servers.mjs" list
 ```
 
-Perintah yang tersedia: `add`, `list`, `remove`, `set-password`, `info` (menampilkan lokasi file).
+Perintah yang tersedia: `add`, `list`, `remove`, `set-password`, `test` (uji koneksi), `info` (menampilkan lokasi file).
 
 | Data | Windows | macOS |
 |------|---------|-------|
@@ -163,8 +164,9 @@ mssql-data-marketplace/
     ├── .mcp.json                       # MCP "dbhub" -> scripts/start-dbhub.mjs
     ├── scripts/
     │   ├── start-dbhub.mjs             # bangun konfigurasi DBHub dari daftar server, jalankan DBHub
-    │   ├── mssql-servers.mjs           # add, list, remove, set-password, info
-    │   └── lib.mjs                     # validasi, DPAPI/Keychain, jendela password, pembuat TOML
+    │   ├── mssql-servers.mjs           # add, list, remove, set-password, test, info
+    │   ├── dbhub.mjs                   # konfigurasi DBHub, cara menjalankan DBHub, uji koneksi
+    │   └── lib.mjs                     # validasi, DPAPI/Keychain, jendela password
     ├── skills/
     │   ├── add-server/  manage-servers/  mssql-setup/
     │   ├── analyze/  explore-data/  write-query/  validate-data/

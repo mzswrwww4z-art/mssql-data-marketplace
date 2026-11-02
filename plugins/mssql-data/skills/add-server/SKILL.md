@@ -38,7 +38,7 @@ If schema search should land in a specific database, the DBA can set it as the l
 
 ### 2. Confirm, then run the command
 
-Repeat the details in one line and tell the user: "A password window titled mssql-data will open. Type the password for <login> there." Then run, with a Bash timeout of at least 5 minutes because the command waits while the window is open:
+Repeat the details in one line and tell the user: "A password window titled mssql-data will open. Type the password for <login> there." Then run it with a Bash timeout of 10 minutes (600000 ms): the command waits while the window is open, then tests the connection by starting DBHub once, and the very first time that downloads DBHub (about 250 MB), which can take a few minutes, especially on Windows.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/mssql-servers.mjs" add --id <id> --host <host> --port <port> --user <login> [--auth ntlm --domain <DOMAIN>] [--instance <NAME>] [--sslmode <mode>] [--description "<text>"]
@@ -46,7 +46,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/mssql-servers.mjs" add --id <id> --host <hos
 
 | Exit code | Meaning | Next step |
 |-----------|---------|-----------|
-| `0` | Saved | Go to step 3 |
+| `0` | Saved, and the connection test passed (the output shows the server name, SQL Server version, default database, and login) | Go to step 3 |
+| `4` | Saved, but the connection test failed; the output shows SQL Server's or DBHub's error | Explain the error with the troubleshooting table in `/mssql-data:mssql-setup`. Fix details with `--replace` or the password with `/mssql-data:manage-servers`, then rerun the test there |
 | `2` | The user cancelled the window or left the password empty; nothing was saved | Ask whether to try again |
 | `1` | Invalid input, a server with that name exists, or another error | Show the message and fix the input. To change an existing server's details, run the same command with `--replace` (its password is kept) |
 
@@ -59,7 +60,7 @@ The server becomes active in the **next** Claude Code session (VS Code: start a 
 - With one server the tools are `execute_sql`, `search_objects`, `explain_sql`, `health_check`.
 - With several servers every tool gets the server name as suffix: `execute_sql_<id>`, `search_objects_<id>`, and so on.
 
-In the new session, check the connection with the verification query in `/mssql-data:mssql-setup`.
+The connection test already ran, so the server should work right away in that session.
 
 ## Related
 

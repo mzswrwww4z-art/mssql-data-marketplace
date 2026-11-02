@@ -10,6 +10,7 @@ jobs:
   test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -19,6 +20,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # A separate step shows how long the first DBHub download (about 250 MB) takes.
+      - name: Download DBHub into the npm cache
+        run: npm exec --yes --package=@bytebase/dbhub@1.5.0 -- node -e 0
       - name: Run tests
         run: node --test
         env:

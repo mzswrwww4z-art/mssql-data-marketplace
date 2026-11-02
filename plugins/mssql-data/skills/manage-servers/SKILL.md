@@ -31,15 +31,23 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/mssql-servers.mjs" remove --id <server>
 
 This deletes the entry and its stored password. It does not touch anything on the database server.
 
+## Test a connection
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/mssql-servers.mjs" test --id <server>
+```
+
+Starts DBHub once and runs a read-only check query. Exit code `0` prints the server name, SQL Server version, default database, and login; `4` prints the exact error (see the troubleshooting table in `/mssql-data:mssql-setup`). The first run on a laptop downloads DBHub (about 250 MB), so use a Bash timeout of 10 minutes.
+
 ## Change a password
 
-Tell the user a password window titled mssql-data will open, then run it with a Bash timeout of at least 5 minutes:
+Tell the user a password window titled mssql-data will open, then run it with a Bash timeout of 10 minutes (it tests the connection afterwards):
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/scripts/mssql-servers.mjs" set-password --id <server>
 ```
 
-Exit code `2` means the user cancelled; nothing changed.
+Exit code `2` means the user cancelled and nothing changed; `4` means the password was saved but the connection test failed.
 
 ## Change host, login, or other details
 

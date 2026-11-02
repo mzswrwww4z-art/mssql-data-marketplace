@@ -63,8 +63,15 @@ If `product_version` does not start with `16.`, warn the user: this plugin's gui
 
 ## 3. Troubleshooting
 
+Start with the connection test, which shows the exact error from SQL Server or DBHub (Bash timeout 10 minutes):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/mssql-servers.mjs" test --id <server>
+```
+
 | Symptom | Likely cause / fix |
 |---------|--------------------|
+| `DBHub tidak merespons dalam ... detik` | The first DBHub download (about 250 MB) did not finish in time; slow networks and antivirus scanning on Windows make it slower. Run the test again: it continues from the npm cache. |
 | No database tools at all | No server configured yet, or the session started before it was added: `/mssql-data:add-server`, then a new session. If servers are listed but the tools are still missing, check that `dbhub` is connected (`claude mcp list` in a terminal) and that Node.js >= 22.5 is installed (`node --version`). On Windows, restart VS Code or the terminal after installing Node.js so `node` is on the PATH. |
 | One server's tools are missing | No password stored for it (`list` shows `password=BELUM ADA`): change the password with `/mssql-data:manage-servers`. |
 | `Failed to connect ... in 15000ms` / `ETIMEOUT` / `ESOCKET` | Host or port unreachable: VPN off, firewall blocking TCP 1433, wrong port for a named instance. Test with `Test-NetConnection <host> -Port 1433` in PowerShell (`nc -vz <host> 1433` on macOS), then fix the details with `add ... --replace`. |

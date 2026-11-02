@@ -4,10 +4,9 @@
 // nothing usable is configured.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import readline from "node:readline";
-import { DBHUB_PACKAGE, buildDbhubToml, loadServers, passwordEnvVar, registryPath, secretStore } from "./lib.mjs";
+import { dbhubCommand, dbhubEnv, writeDbhubConfig } from "./dbhub.mjs";
+import { loadServers, registryPath, secretStore } from "./lib.mjs";
 
 const PLUGIN_VERSION = JSON.parse(fs.readFileSync(new URL("../.claude-plugin/plugin.json", import.meta.url), "utf8")).version;
 const DEFAULT_PROTOCOL_VERSION = "2025-03-26";
@@ -50,22 +49,15 @@ function main() {
       `No password is stored for the configured SQL Server(s): ${missing.join(", ")}. Ask the user to set it with /mssql-data:manage-servers, then start a new session.`,
     );
   }
-  const env = {
-    ...process.env,
-    ...Object.fromEntries(ready.map(({ server, secret }) => [passwordEnvVar(server.id), encodeURIComponent(secret)])),
-  };
   return runDbhub(
     ready.map(({ server }) => server),
-    env,
+    dbhubEnv(ready),
   );
 }
 
 function runDbhub(servers, env) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mssql-data-"));
-  const config = path.join(dir, "dbhub.toml");
-  fs.writeFileSync(config, buildDbhubToml(servers), { mode: 0o600 });
-  const cleanup = () => fs.rmSync(dir, { recursive: true, force: true });
-  const { command, args, shell } = dbhubCommand(config);
+  const { file, cleanup } = writeDbhubConfig(servers);
+  const { command, args, shell } = dbhubCommand(file);
   const child = spawn(command, args, { env, stdio: "inherit", shell, windowsHide: true });
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(signal, () => child.kill(signal));
   child.on("error", (error) => {
@@ -77,18 +69,6 @@ function runDbhub(servers, env) {
     cleanup();
     process.exit(code ?? (signal ? 1 : 0));
   });
-}
-
-const quoteForCmd = (arg) => `"${arg.replace(/"/g, '""')}"`;
-
-function dbhubCommand(config) {
-  const args = ["-y", DBHUB_PACKAGE, "--transport", "stdio", "--config", config];
-  if (process.platform !== "win32") return { command: "npx", args, shell: false };
-  // npx is a .cmd shim on Windows, which Node only starts through a shell. Run npm's npx
-  // script with this Node binary instead, and fall back to the shim when it is elsewhere.
-  const npxCli = path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js");
-  if (fs.existsSync(npxCli)) return { command: process.execPath, args: [npxCli, ...args], shell: false };
-  return { command: "npx.cmd", args: args.map(quoteForCmd), shell: true };
 }
 
 /** Minimal MCP server with no tools whose instructions tell Claude how to add a server. */

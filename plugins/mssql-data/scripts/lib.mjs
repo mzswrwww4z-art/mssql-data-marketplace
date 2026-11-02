@@ -1,11 +1,10 @@
-// Shared helpers for the mssql-data plugin: the server list, password storage, password
-// dialogs, and the DBHub configuration generated from them. Works on Windows and macOS.
+// Shared helpers for the mssql-data plugin: the server list, password storage, and
+// password dialogs. Works on Windows and macOS.
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export const DBHUB_PACKAGE = "@bytebase/dbhub@1.5.0";
 export const DIALOG_OK = 0;
 export const DIALOG_CANCELLED = 2;
 export const DIALOG_UNAVAILABLE = 3;
@@ -21,9 +20,6 @@ const AUTH_MODES = ["sql", "ntlm"];
 const SSL_MODES = ["require", "verify-full", "disable"];
 const DEFAULT_PORT = 1433;
 const MAX_DESCRIPTION_LENGTH = 200;
-const MAX_ROWS = 1000;
-const CONNECTION_TIMEOUT_SECONDS = 30;
-const QUERY_TIMEOUT_SECONDS = 60;
 const KEYCHAIN_ITEM_NOT_FOUND = 44;
 const APPLESCRIPT_USER_CANCELLED = "-128";
 const POWERSHELL = "powershell.exe";
@@ -129,10 +125,18 @@ function powershellArgs(script, { interactive }) {
   ];
 }
 
+// Windows PowerShell 5.1 cannot load its own modules when it inherits the PSModulePath of
+// PowerShell 7, which is what a pwsh terminal (or GitHub Actions) passes down.
+function powershellEnv(extra = {}) {
+  const inherited = Object.entries(process.env).filter(([key]) => key.toUpperCase() !== "PSMODULEPATH");
+  return { ...Object.fromEntries(inherited), ...extra };
+}
+
 function runPowerShell(script, input) {
   try {
     const args = powershellArgs(script, { interactive: false });
-    return execFileSync(POWERSHELL, args, { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], windowsHide: true }).trim();
+    const options = { input, env: powershellEnv(), encoding: "utf8", stdio: ["pipe", "pipe", "pipe"], windowsHide: true };
+    return execFileSync(POWERSHELL, args, options).trim();
   } catch (error) {
     throw new Error(`PowerShell: ${String(error.stderr || error.message).trim()}`);
   }
@@ -168,18 +172,27 @@ function jsonFileMap(file, env) {
 
 // ConvertFrom-SecureString without a key encrypts with DPAPI for the current Windows user.
 // Passwords travel through stdin as base64 so code pages and quoting never touch them.
-const DPAPI_PROTECT_SCRIPT = `
+// Errors are written as plain text so they don't arrive as CLIXML.
+const powershellScript = (body) => `
 $ErrorActionPreference = 'Stop'
-$plain = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()))
-$secure = ConvertTo-SecureString -String $plain -AsPlainText -Force
-[Console]::Out.Write((ConvertFrom-SecureString -SecureString $secure))
+$ProgressPreference = 'SilentlyContinue'
+try {
+${body}
+} catch {
+  [Console]::Error.Write($_.Exception.Message)
+  exit 1
+}
 `;
-const DPAPI_UNPROTECT_SCRIPT = `
-$ErrorActionPreference = 'Stop'
-$secure = ConvertTo-SecureString -String ([Console]::In.ReadToEnd().Trim())
-$plain = (New-Object System.Management.Automation.PSCredential 'mssql-data', $secure).GetNetworkCredential().Password
-[Console]::Out.Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($plain)))
-`;
+const DPAPI_PROTECT_SCRIPT = powershellScript(`
+  $plain = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()))
+  $secure = ConvertTo-SecureString -String $plain -AsPlainText -Force
+  [Console]::Out.Write((ConvertFrom-SecureString -SecureString $secure))
+`);
+const DPAPI_UNPROTECT_SCRIPT = powershellScript(`
+  $secure = ConvertTo-SecureString -String ([Console]::In.ReadToEnd().Trim())
+  $plain = (New-Object System.Management.Automation.PSCredential 'mssql-data', $secure).GetNetworkCredential().Password
+  [Console]::Out.Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($plain)))
+`);
 
 function dpapiStore(file, env) {
   const blobs = jsonFileMap(file, env);
@@ -251,12 +264,19 @@ function fileStore(file, env) {
   };
 }
 
-// Exit codes 0 = saved, 2 = cancelled or timed out, 3 = no dialog possible. A process that
-// Node starts hidden ignores its first ShowWindow call, so a throwaway form spends it first.
+// Exit codes 0 = saved, 2 = cancelled or timed out, 3 = no dialog possible. Node starts
+// PowerShell hidden, and Windows applies that to the first window the process shows, so the
+// form is shown again explicitly once it is up.
 const WINDOWS_DIALOG_SCRIPT = `
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 try {
   Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+  Add-Type -Namespace MssqlData -Name Win32 -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+'@
 } catch {
   [Console]::Error.Write("dialog-unavailable: $($_.Exception.Message)")
   exit 3
@@ -266,12 +286,6 @@ if (-not [Environment]::UserInteractive) {
   exit 3
 }
 [System.Windows.Forms.Application]::EnableVisualStyles()
-$primer = New-Object System.Windows.Forms.Form
-$primer.ShowInTaskbar = $false
-$primer.Opacity = 0
-$primer.Show()
-$primer.Hide()
-$primer.Dispose()
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'mssql-data'
@@ -304,10 +318,11 @@ $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = [Math]::Max(1, [int]$env:MSSQL_DATA_DIALOG_TIMEOUT) * 1000
 $timer.Add_Tick({ $timer.Stop(); $form.DialogResult = [System.Windows.Forms.DialogResult]::Cancel; $form.Close() })
 $form.Add_Shown({
+  [void][MssqlData.Win32]::ShowWindow($form.Handle, 5)
+  [void][MssqlData.Win32]::SetForegroundWindow($form.Handle)
   $form.Activate()
   [void]$box.Focus()
   if ($env:MSSQL_DATA_DIALOG_PROBE -eq '1') {
-    Add-Type -Namespace MssqlData -Name Win32 -MemberDefinition '[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);'
     [Console]::Error.Write("probe-visible=$([MssqlData.Win32]::IsWindowVisible($form.Handle))")
   }
   $timer.Start()
@@ -323,12 +338,11 @@ exit 2
 /** Shows a password dialog on Windows. Returns { status, password, stderr }. */
 export function windowsPasswordDialog(message, timeoutSeconds, { probe = false } = {}) {
   const result = spawnSync(POWERSHELL, powershellArgs(WINDOWS_DIALOG_SCRIPT, { interactive: true }), {
-    env: {
-      ...process.env,
+    env: powershellEnv({
       MSSQL_DATA_DIALOG_MESSAGE: message,
       MSSQL_DATA_DIALOG_TIMEOUT: String(timeoutSeconds),
       ...(probe ? { MSSQL_DATA_DIALOG_PROBE: "1" } : {}),
-    },
+    }),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
@@ -353,49 +367,4 @@ export function macPasswordDialog(message, timeoutSeconds) {
   if (password !== "") return { status: DIALOG_OK, password, stderr };
   const cancelled = result.status === 0 || stderr.includes(APPLESCRIPT_USER_CANCELLED);
   return { status: cancelled ? DIALOG_CANCELLED : DIALOG_UNAVAILABLE, password: null, stderr };
-}
-
-// JSON string escapes are valid TOML basic-string escapes, and inputs are validated above.
-const toml = (value) => JSON.stringify(String(value));
-
-/**
- * SQL Server DSN with no database in the path, so the connection opens the login's
- * default database. The password is a placeholder that DBHub fills from the environment.
- */
-function buildDsn(server) {
-  const params = new URLSearchParams([
-    ["sslmode", server.sslmode],
-    ...(server.instance ? [["instanceName", server.instance]] : []),
-    ...(server.auth === "ntlm" ? [["authentication", "ntlm"], ["domain", server.domain]] : []),
-  ]);
-  return `sqlserver://${encodeURIComponent(server.user)}:\${${passwordEnvVar(server.id)}}@${server.host}:${server.port}/?${params}`;
-}
-
-/** DBHub TOML for the given servers: one read-only source with four tools per server. */
-export function buildDbhubToml(servers) {
-  const sources = servers.flatMap((server) => [
-    "[[sources]]",
-    `id = ${toml(server.id)}`,
-    ...(server.description ? [`description = ${toml(server.description)}`] : []),
-    `dsn = ${toml(buildDsn(server))}`,
-    `connection_timeout = ${CONNECTION_TIMEOUT_SECONDS}`,
-    `query_timeout = ${QUERY_TIMEOUT_SECONDS}`,
-    "lazy = true",
-    "",
-  ]);
-  const tools = servers.flatMap((server) => [
-    "[[tools]]",
-    'name = "execute_sql"',
-    `source = ${toml(server.id)}`,
-    "readonly = true",
-    `max_rows = ${MAX_ROWS}`,
-    "",
-    ...["search_objects", "explain_sql", "health_check"].flatMap((name) => [
-      "[[tools]]",
-      `name = "${name}"`,
-      `source = ${toml(server.id)}`,
-      "",
-    ]),
-  ]);
-  return ["# Generated by the mssql-data plugin from servers.json. Do not edit.", "", ...sources, ...tools].join("\n");
 }
