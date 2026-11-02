@@ -1,7 +1,7 @@
 {
   "name": "mssql-data",
-  "version": "2.0.0",
-  "description": "SQL Server 2022 data analyst for on-premises/internal servers. Add any number of servers after installation with /mssql-data:add-server, then write T-SQL, explore schemas, profile and validate data, and build visualizations and dashboards. Combines the Anthropic data plugin skills with the DBHub MCP server.",
+  "version": "3.0.0",
+  "description": "SQL Server 2022 data analyst for on-premises/internal servers, for Claude Code on Windows (CLI or VS Code) and macOS. Add any number of servers after installation with /mssql-data:add-server, then write T-SQL, explore schemas, profile and validate data, and build visualizations and dashboards. Combines the Anthropic data plugin skills with the DBHub MCP server.",
   "author": {
     "name": "Yusuf Muhammad"
   },

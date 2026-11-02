@@ -37,22 +37,28 @@ With several servers, use the one the user means (each source's description says
 
 ## Before Writing Queries: Check the Environment
 
-Run once per session and remember the answers:
+Connections have no fixed database: they open in the login's default database (often `master`). Run these once per server per session and remember the answers:
 
 ```sql
-SELECT
-    SERVERPROPERTY('ProductVersion')      AS product_version,   -- 16.x = SQL Server 2022
-    SERVERPROPERTY('ProductUpdateLevel')  AS cu_level,
-    SERVERPROPERTY('Edition')             AS edition,
-    DB_NAME()                             AS current_db,
-    d.compatibility_level,                                       -- 160 = full 2022 feature set
-    d.collation_name,                                            -- _CI_ = case-insensitive comparisons
-    d.is_read_committed_snapshot_on,
-    d.is_query_store_on
-FROM sys.databases AS d
-WHERE d.name = DB_NAME();
+-- Server version and the database the connection opened in
+SELECT SERVERPROPERTY('ProductVersion')     AS product_version,   -- 16.x = SQL Server 2022
+       SERVERPROPERTY('ProductUpdateLevel') AS cu_level,
+       SERVERPROPERTY('Edition')            AS edition,
+       DB_NAME()                            AS current_db;
+
+-- User databases this login can open, with their settings
+SELECT name,
+       compatibility_level,              -- 160 = full 2022 feature set
+       collation_name,                   -- _CI_ = case-insensitive comparisons
+       is_read_committed_snapshot_on,
+       is_query_store_on
+FROM sys.databases
+WHERE database_id > 4 AND state_desc = 'ONLINE' AND HAS_DBACCESS(name) = 1
+ORDER BY name;
 ```
 
+- **Which database**: ask the user when the question doesn't make it clear, then reference objects with three-part names (`SalesDB.dbo.Orders`) unless they live in `DB_NAME()`. `USE` is not available in read-only mode.
+- **Compatibility level** applies per database, and gated syntax follows the database the query runs in (`DB_NAME()`), not the one you reference.
 - **Compatibility level < 160**: avoid `GENERATE_SERIES` and the `WINDOW` clause (they require 160) and do not rely on 2022 Intelligent Query Processing features. Other 2022 functions (`DATETRUNC`, `DATE_BUCKET`, `GREATEST`/`LEAST`, `IS DISTINCT FROM`, `APPROX_PERCENTILE_CONT`) work at any level, but if one fails, fall back to the "Pre-2022 equivalent" shown below.
 - **Collation**: most installs are `SQL_Latin1_General_CP1_CI_AS` → `=` and `LIKE` are case-insensitive. For case-sensitive comparisons add `COLLATE Latin1_General_CS_AS`.
 
@@ -464,7 +470,7 @@ CROSS APPLY (
 
 ## Catalog Queries (Instead of sp_help*)
 
-`search_objects` covers most schema discovery. When you need more, query the catalog directly:
+`search_objects` covers schema discovery in the current database (`DB_NAME()`). For anything else, query the catalog directly. The examples below use the current database; for another one, prefix the catalog views (`SalesDB.sys.tables`, `SalesDB.INFORMATION_SCHEMA.COLUMNS`) and pass the database id to metadata functions: `OBJECT_ID('SalesDB.dbo.Orders')`, `OBJECT_NAME(object_id, DB_ID('SalesDB'))`, `OBJECT_SCHEMA_NAME(object_id, DB_ID('SalesDB'))`.
 
 ```sql
 -- Row counts and size per table (no full scan)
@@ -554,7 +560,7 @@ DMVs need `VIEW SERVER PERFORMANCE STATE` / `VIEW DATABASE PERFORMANCE STATE` (S
 
 When a query fails:
 
-1. **Invalid object name**: check the schema prefix (`dbo.` vs another schema), the current database (`DB_NAME()`), and use `search_objects` to find the right name. Cross-database references use `Database.schema.table`.
+1. **Invalid object name**: the object is probably in another database than `DB_NAME()`: use its three-part name (`SalesDB.dbo.Orders`). Also check the schema prefix (`dbo.` vs another schema) and find the right name with the `schema-discovery` skill.
 2. **Invalid column name**: verify with `search_objects` (`detail_level: "full"`); bracket identifiers with spaces or reserved words: `[Order Date]`, `[User]`.
 3. **Conversion failed**: use `TRY_CAST` / `TRY_CONVERT` to find bad rows: `WHERE TRY_CAST(col AS int) IS NULL AND col IS NOT NULL`.
 4. **Divide by zero**: `x / NULLIF(y, 0)`.

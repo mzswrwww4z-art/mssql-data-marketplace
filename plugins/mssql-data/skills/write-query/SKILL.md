@@ -50,7 +50,7 @@ Follow these best practices (details in the `tsql-queries` skill):
 **Structure:**
 - Use CTEs (`WITH`) for readability when queries have multiple logical steps
 - One CTE per logical transformation or data source; name CTEs descriptively (`daily_sales`, `active_customers`)
-- Always schema-qualify objects (`dbo.Orders`, `sales.Invoice`)
+- Always qualify objects: `schema.table` in the current database, `Database.schema.table` elsewhere (connections open in the login's default database, and `USE` is not available)
 - For queries Claude will run: one statement starting with `SELECT` or `WITH` — no `DECLARE`, temp tables, or `EXEC`. Put parameters in a `params` CTE
 - For scripts the user will deploy: `DECLARE` variables, temp tables and `CREATE VIEW` are fine, but say clearly that the user must run them
 

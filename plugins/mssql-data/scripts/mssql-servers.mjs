@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Manage the SQL Server connections of the mssql-data plugin.
+// Manage the SQL Server connections of the mssql-data plugin (Windows and macOS).
 //
-//   add           --id ID --host HOST --database DB --user USER [--port 1433]
+//   add           --id ID --host HOST --user USER [--port 1433]
 //                 [--auth sql|ntlm] [--domain DOMAIN] [--instance NAME]
 //                 [--sslmode require|verify-full|disable] [--description TEXT]
 //                 [--replace] [--password-stdin]
@@ -10,17 +10,29 @@
 //   set-password  --id ID [--password-stdin]
 //   info
 //
-// Passwords come from a macOS password dialog, a hidden terminal prompt, or stdin
-// (--password-stdin), and are stored in the macOS Keychain, never in servers.json.
-import { execFileSync } from "node:child_process";
+// Passwords come from a password dialog, a hidden terminal prompt, or stdin
+// (--password-stdin). They are stored with Windows DPAPI or in the macOS Keychain,
+// never in servers.json.
 import fs from "node:fs";
 import { parseArgs } from "node:util";
-import { UserError, configDir, describeServer, loadServers, registryPath, saveServers, secretStore, validateServer } from "./lib.mjs";
+import {
+  DIALOG_CANCELLED,
+  DIALOG_OK,
+  UserError,
+  configDir,
+  describeServer,
+  loadServers,
+  macPasswordDialog,
+  registryPath,
+  saveServers,
+  secretStore,
+  validateServer,
+  windowsPasswordDialog,
+} from "./lib.mjs";
 
 const EXIT_ERROR = 1;
 const EXIT_CANCELLED = 2;
 const DEFAULT_DIALOG_TIMEOUT_SECONDS = 300;
-const APPLESCRIPT_USER_CANCELLED = "-128";
 
 class CancelledError extends Error {}
 
@@ -28,7 +40,6 @@ const OPTIONS = {
   id: { type: "string" },
   host: { type: "string" },
   port: { type: "string" },
-  database: { type: "string" },
   user: { type: "string" },
   auth: { type: "string" },
   domain: { type: "string" },
@@ -64,7 +75,6 @@ async function add(values) {
     id: values.id,
     host: values.host,
     port: values.port,
-    database: values.database,
     user: values.user,
     auth: values.auth,
     domain: values.domain,
@@ -154,26 +164,17 @@ async function readPassword(values, server) {
 
 function promptPassword(label) {
   if (process.stdin.isTTY) return promptHidden(`Password untuk ${label}: `);
-  if (process.platform === "darwin") return promptDialog(label);
-  throw new UserError("Password tidak bisa diminta di sini. Jalankan perintah ini di terminal, atau kirim password lewat --password-stdin.");
-}
-
-const appleScriptString = (text) => `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-
-async function promptDialog(label) {
-  const timeout = Number(process.env.MSSQL_DATA_DIALOG_TIMEOUT) || DEFAULT_DIALOG_TIMEOUT_SECONDS;
-  const script =
-    `text returned of (display dialog ${appleScriptString(`Masukkan password SQL Server untuk ${label}.`)} ` +
-    `default answer "" with hidden answer with title "mssql-data" buttons {"Batal", "Simpan"} ` +
-    `default button "Simpan" cancel button "Batal" giving up after ${timeout})`;
-  try {
-    return execFileSync("/usr/bin/osascript", ["-e", script], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).replace(/\n$/, "");
-  } catch (error) {
-    if (String(error.stderr).includes(APPLESCRIPT_USER_CANCELLED)) {
-      throw new CancelledError("Pengisian password dibatalkan; tidak ada yang disimpan.");
-    }
-    throw new UserError(`Dialog password tidak bisa dibuka: ${String(error.stderr || error.message).trim()}`);
+  const dialog = { win32: windowsPasswordDialog, darwin: macPasswordDialog }[process.platform];
+  if (!dialog) {
+    throw new UserError("Password tidak bisa diminta di sini. Jalankan perintah ini di terminal, atau kirim password lewat --password-stdin.");
   }
+  const timeout = Number(process.env.MSSQL_DATA_DIALOG_TIMEOUT) || DEFAULT_DIALOG_TIMEOUT_SECONDS;
+  const result = dialog(`Masukkan password SQL Server untuk ${label}.`, timeout);
+  if (result.status === DIALOG_OK) return result.password;
+  if (result.status === DIALOG_CANCELLED) throw new CancelledError("Pengisian password dibatalkan; tidak ada yang disimpan.");
+  throw new UserError(
+    `Dialog password tidak bisa dibuka (${result.stderr.trim() || "alasan tidak diketahui"}). Jalankan perintah ini sendiri di terminal: password akan diminta dengan prompt tersembunyi.`,
+  );
 }
 
 function promptHidden(question) {

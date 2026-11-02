@@ -20,7 +20,7 @@ Generate a comprehensive data profile for a SQL Server table/view or an uploaded
 
 **If the `dbhub` MCP server is connected:**
 
-1. Resolve the table name with `search_objects` — handle schema prefixes (`dbo.`, `sales.`) and suggest matches if ambiguous
+1. Resolve the database and table (follow the `schema-discovery` skill): handle database and schema prefixes (`SalesDB.dbo.Orders`) and suggest matches if ambiguous. For a table outside `DB_NAME()`, prefix the catalog views in the profiling queries below with its database (`SalesDB.sys.tables`) and use `OBJECT_ID('SalesDB.dbo.Orders')`
 2. Get metadata with `search_objects` (`detail_level: "full"`): columns, data types, nullability, keys, indexes, `MS_Description` comments
 3. Get size without scanning (row count and reserved MB from `sys.dm_db_partition_stats` — see "Table-level metadata" below)
 4. Run the profiling queries below against the live data through `execute_sql`

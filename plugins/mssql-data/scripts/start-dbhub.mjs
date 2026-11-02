@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// MCP entry point of the mssql-data plugin. Starts DBHub with one read-only source per
-// server in servers.json, or a tool-less placeholder server while nothing usable is configured.
+// MCP entry point of the mssql-data plugin (Windows and macOS). Starts DBHub with one
+// read-only source per server in servers.json, or a tool-less placeholder server while
+// nothing usable is configured.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -51,7 +52,7 @@ function main() {
   }
   const env = {
     ...process.env,
-    ...Object.fromEntries(ready.map(({ server, secret }) => [passwordEnvVar(server.id), secret])),
+    ...Object.fromEntries(ready.map(({ server, secret }) => [passwordEnvVar(server.id), encodeURIComponent(secret)])),
   };
   return runDbhub(
     ready.map(({ server }) => server),
@@ -64,8 +65,8 @@ function runDbhub(servers, env) {
   const config = path.join(dir, "dbhub.toml");
   fs.writeFileSync(config, buildDbhubToml(servers), { mode: 0o600 });
   const cleanup = () => fs.rmSync(dir, { recursive: true, force: true });
-  const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-  const child = spawn(npx, ["-y", DBHUB_PACKAGE, "--transport", "stdio", "--config", config], { env, stdio: "inherit" });
+  const { command, args, shell } = dbhubCommand(config);
+  const child = spawn(command, args, { env, stdio: "inherit", shell, windowsHide: true });
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(signal, () => child.kill(signal));
   child.on("error", (error) => {
     cleanup();
@@ -76,6 +77,18 @@ function runDbhub(servers, env) {
     cleanup();
     process.exit(code ?? (signal ? 1 : 0));
   });
+}
+
+const quoteForCmd = (arg) => `"${arg.replace(/"/g, '""')}"`;
+
+function dbhubCommand(config) {
+  const args = ["-y", DBHUB_PACKAGE, "--transport", "stdio", "--config", config];
+  if (process.platform !== "win32") return { command: "npx", args, shell: false };
+  // npx is a .cmd shim on Windows, which Node only starts through a shell. Run npm's npx
+  // script with this Node binary instead, and fall back to the shim when it is elsewhere.
+  const npxCli = path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js");
+  if (fs.existsSync(npxCli)) return { command: process.execPath, args: [npxCli, ...args], shell: false };
+  return { command: "npx.cmd", args: args.map(quoteForCmd), shell: true };
 }
 
 /** Minimal MCP server with no tools whose instructions tell Claude how to add a server. */
