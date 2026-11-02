@@ -6,7 +6,7 @@ argument-hint: "[error message or what you want to set up]"
 
 # /mssql-setup - Connect to SQL Server 2022
 
-The connection string (DSN) is entered in the plugin's configuration dialog and stored in Claude Code's secure storage. The plugin runs DBHub locally over stdio: this machine connects **directly** to the SQL Server, so the server must be reachable from here (office network or VPN). Nothing goes through a cloud service.
+The connection string (DSN) is a required plugin option, stored in Claude Code's secure storage (macOS Keychain). **Until it is set, Claude Code does not register the plugin's `dbhub` MCP server at all** — if this session has no `dbhub` tools (`execute_sql`, `search_objects`), the DSN is missing or the session was opened before it was saved. The plugin runs DBHub locally over stdio: this machine connects **directly** to the SQL Server, so the server must be reachable from here (office network or VPN). Nothing goes through a cloud service.
 
 The plugin is read-only, caps results at 1000 rows and times out queries after 60 seconds.
 
@@ -31,7 +31,17 @@ sqlserver://<user>:<password>@<host>:<port>/<database>?sslmode=<mode>
 
 **Named instances:** the SQL Server Browser service (UDP 1434) must be reachable, or use the instance's fixed TCP port directly in the DSN and drop `instanceName`.
 
-Never ask the user to paste the password into the chat. Point them at the configuration dialog: run `/plugin`, open **mssql-data** → configuration, set the DSN, then reconnect with `/mcp` (reconnect `dbhub`) or restart Claude Code.
+Never ask the user to paste the password into the chat, and never run the configure command with their DSN yourself. Give them this command to run in their own Terminal. It needs Claude Code >= 2.1.285 — check `claude --version`; upgrade with `brew upgrade --cask claude-code` for Homebrew installs (`claude update` does not upgrade those) or `claude update` for the native installer — prompts for the DSN without echoing it, keeps it out of shell history, and saves it to secure storage:
+
+```bash
+python3 -c 'import getpass, json; print(json.dumps({"dsn": getpass.getpass("DSN: ")}))' | claude plugin configure mssql-data@mssql-data-marketplace --values-stdin
+```
+
+If the terminal `claude` is older than 2.1.285, the plugin's helper `scripts/set-dsn.sh` does the same thing and picks a Claude Code CLI that is new enough (the terminal `claude` when possible, otherwise the copy bundled with the desktop app). For a GitHub install it is at `~/.claude/plugins/marketplaces/mssql-data-marketplace/plugins/mssql-data/scripts/set-dsn.sh`; for a local-folder install it is in that folder; the installed copy is at `~/.claude/plugins/cache/mssql-data-marketplace/mssql-data/<version>/scripts/set-dsn.sh`.
+
+Alternative in an interactive terminal `claude` session: `/plugin configure mssql-data@mssql-data-marketplace`. The `/plugin` dialog is **not** available in the desktop app's Code tab, and installing from the shell or the desktop app never prompts for the DSN.
+
+After "Configuration saved", the user must start a **new** session (desktop app: open a new session; terminal: restart `claude`) — running sessions don't pick up plugin options. `claude plugin configure mssql-data@mssql-data-marketplace` without flags shows whether `dsn` is set (never its value).
 
 ## 2. Recommend a Read-Only Login
 
@@ -85,6 +95,8 @@ A JSON `initialize` response means DBHub started. The connection itself is lazy,
 
 | Symptom | Likely cause / fix |
 |---------|--------------------|
+| No `dbhub` MCP server or tools at all | The required `dsn` option is not set (`claude plugin configure mssql-data@mssql-data-marketplace` shows `required, not set`), or the session started before it was saved. Set it with the command in section 1, then open a new session. |
+| Plugin updates fail after moving/deleting the local folder | A local-folder marketplace keeps pointing at its source folder (GitHub installs are not affected). Re-add it from the new path: `claude plugin marketplace add "<new path>/mssql-data-marketplace"`, then reinstall. |
 | `Failed to connect ... in 15000ms` / `ETIMEOUT` / `ESOCKET` | Host/port unreachable: VPN off, firewall blocking TCP 1433, wrong port for a named instance. Test with `nc -vz <host> 1433`. |
 | `Login failed for user` | Wrong user/password, password not URL-encoded, SQL authentication disabled on the server (Windows-only mode), or the login has no user in that database. |
 | `Cannot open database "X" requested by the login` | The login exists but has no user mapped in that database, or the database name is wrong. |

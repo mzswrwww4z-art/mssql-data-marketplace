@@ -40,21 +40,65 @@ Plugin Claude Code yang menggabungkan:
 
 ## Prasyarat
 
-- Claude Code
+- Claude Code **>= 2.1.285** di terminal (`claude --version`; perbarui dengan `brew upgrade --cask claude-code` untuk Homebrew, atau `claude update` untuk native installer)
 - **Node.js >= 22.5.0** (`node --version`). `npx` mengunduh DBHub saat pertama kali dijalankan
 - Mesin ini bisa menjangkau SQL Server (jaringan kantor/VPN, firewall TCP 1433 terbuka)
 - Login SQL Server yang **read-only** (lihat skrip di `/mssql-data:mssql-setup`)
 
 ## Instalasi
 
-Dari folder yang berisi `mssql-data-marketplace/`, jalankan di Claude Code:
+Jalankan semua perintah di **Terminal**, bukan di chat desktop app. Dialog `/plugin` tidak tersedia di Code tab desktop.
 
+### Dari GitHub (disarankan, termasuk di laptop lain)
+
+```bash
+claude plugin marketplace add mzswrwww4z-art/mssql-data-marketplace
 ```
-/plugin marketplace add ./mssql-data-marketplace
-/plugin install mssql-data@mssql-data-marketplace
+```bash
+claude plugin install mssql-data@mssql-data-marketplace --scope user
 ```
 
-Saat instalasi, Claude Code akan meminta **DSN** dan menyimpannya di secure storage (tidak tersimpan di file mana pun):
+Lalu isi DSN dengan skrip bawaan. Skrip ini meminta DSN tanpa menampilkannya, menyimpannya di Keychain, dan otomatis memakai CLI Claude Code yang cukup baru (atau CLI bawaan desktop app):
+
+```bash
+~/.claude/plugins/marketplaces/mssql-data-marketplace/plugins/mssql-data/scripts/set-dsn.sh
+```
+
+Setelah muncul "Configuration saved", buka sesi Claude Code baru. Untuk mengambil versi terbaru dari GitHub di kemudian hari:
+
+```bash
+claude plugin marketplace update mssql-data-marketplace && claude plugin update mssql-data@mssql-data-marketplace
+```
+
+### Dari folder lokal
+
+> **Penting:** Claude Code menyalin plugin ke cache saat instal, tetapi marketplace tetap menunjuk ke folder sumber (dipakai saat `marketplace update` dan `plugin update`). Simpan folder `mssql-data-marketplace/` di lokasi permanen dan jangan dipindah atau dihapus setelahnya.
+
+1. Pastikan versi Claude Code di terminal minimal 2.1.285 (dibutuhkan oleh `claude plugin configure`). Cek dengan `claude --version`. Cara memperbarui tergantung cara instalnya. Untuk instalasi lewat Homebrew:
+   ```bash
+   brew upgrade --cask claude-code
+   ```
+   Untuk native installer, gunakan `claude update`. Perlu diketahui: `claude update` tidak memperbarui instalasi Homebrew.
+2. Tambahkan marketplace dan instal plugin. Gunakan scope `user` supaya plugin juga aktif di desktop app:
+   ```bash
+   claude plugin marketplace add "/path/permanen/mssql-data-marketplace"
+   ```
+   ```bash
+   claude plugin install mssql-data@mssql-data-marketplace --scope user
+   ```
+3. Isi DSN. Perintah ini meminta DSN tanpa menampilkannya di layar dan tanpa masuk ke shell history. Nilainya disimpan di macOS Keychain:
+   ```bash
+   python3 -c 'import getpass, json; print(json.dumps({"dsn": getpass.getpass("DSN: ")}))' | claude plugin configure mssql-data@mssql-data-marketplace --values-stdin
+   ```
+   Alternatif yang tidak bergantung pada versi `claude` di terminal: jalankan skrip bawaan plugin. Skrip ini memakai `claude` kalau versinya cukup, dan kalau tidak, memakai CLI bawaan desktop app:
+   ```bash
+   "/path/permanen/mssql-data-marketplace/plugins/mssql-data/scripts/set-dsn.sh"
+   ```
+4. Buka **sesi baru** di desktop app, karena sesi yang sudah terbuka tidak memuat ulang plugin. Untuk mengecek, jalankan `claude mcp list`; harus muncul `plugin:mssql-data:dbhub … ✔ Connected`. "Connected" berarti DBHub sudah berjalan. Login ke SQL Server baru diuji saat query pertama.
+
+**Kenapa DSN tidak diminta saat instal?** Prompt opsi plugin (`userConfig`) hanya muncul di dialog `/plugin` pada terminal interaktif. Instalasi dari shell atau desktop app tidak menampilkan prompt. **Selama DSN (opsi wajib) belum diisi, Claude Code tidak mendaftarkan MCP server `dbhub` sama sekali.** Kalau tidak ada MCP baru, jalankan langkah 3.
+
+Contoh DSN:
 
 ```
 sqlserver://report_ro:PASSWORD@10.10.1.20:1433/SalesDB?sslmode=require
@@ -69,7 +113,7 @@ sqlserver://report_ro:PASSWORD@10.10.1.20:1433/SalesDB?sslmode=require
 
 Karakter khusus di password wajib di-URL-encode: `@`→`%40`, `:`→`%3A`, `/`→`%2F`, `#`→`%23`, `%`→`%25`, `&`→`%26`.
 
-Untuk mengganti DSN: `/plugin` → **mssql-data** → configuration, lalu `/mcp` → reconnect `dbhub`.
+Untuk mengganti DSN, ulangi langkah 3, lalu buka sesi baru. Untuk melihat apakah DSN sudah terisi (nilainya tidak ditampilkan), jalankan `claude plugin configure mssql-data@mssql-data-marketplace`.
 
 ## Keamanan
 
